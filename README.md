@@ -2,6 +2,27 @@
 
 CAP CDS Node.js microservice for Employee Management, deployable to SAP BTP Cloud Foundry.
 
+## 🤖 Automated Debugging
+
+This repository includes **automated log analysis and code fix generation** using GitHub Actions + GitHub Copilot CLI + MCP.
+
+**Quick Start**: See [QUICKSTART.md](QUICKSTART.md) for 5-minute setup  
+**How it works**: See [ARCHITECTURE.md](ARCHITECTURE.md) for system diagrams  
+**Example output**: See [EXAMPLE_OUTPUT.md](EXAMPLE_OUTPUT.md) for sample PR
+
+### What It Does
+
+When you trigger the "Analyze Production Logs" workflow:
+1. 🔍 Connects to alertsMCP server to fetch logs and metrics
+2. 🧠 Analyzes errors using Claude Sonnet 4 AI
+3. 🔧 Identifies root causes (e.g., memory leaks)
+4. 📝 Generates code fixes
+5. 🚀 Creates pull request with detailed analysis
+
+**Trigger**: Manual, scheduled (daily 2 AM), or webhook  
+**Duration**: ~3 minutes  
+**Output**: PR with fix + analysis report
+
 ## Features
 - CRUD OData V4 API for Employees
 - Custom `onboardEmployee` action with Alert Notification
