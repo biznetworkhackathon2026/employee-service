@@ -25,22 +25,22 @@ jobs:
       - name: Install CDS DK
         run: npm install -g @sap/cds-dk@^8
 
+      - name: Install MTA build tool
+        run: npm install -g mbt
+
       - name: Build CDS (gen/srv)
         run: cds build --production
-      
+
       - name: Install CF CLI
         run: |
           curl -L -o cf-cli.tgz "https://github.com/cloudfoundry/cli/releases/download/v8.7.10/cf8-cli_8.7.10_linux_x86-64.tgz"
           tar -zxf cf-cli.tgz
           sudo mv cf8 /usr/local/bin/cf
-          cf --version 
-          
-      - name: Install MTA build tool
+          cf --version
+
+      - name: Install CF MTA plugin
         run: |
-          curl -L -o mta-build-tool.tar.gz "https://github.com/SAP/cloud-mta-build-tool/releases/download/v1.15.0/cloud-mta-build-tool_Linux_amd64.tar.gz"
-          tar -zxf mta-build-tool.tar.gz
-          sudo mv mbt /usr/local/bin/mbt
-          mbt --version
+          cf install-plugin -f https://github.com/cloudfoundry-incubator/multiapps-cli-plugin/releases/latest/download/multiapps-plugin.linux64
 
       - name: CF Login
         run: |
