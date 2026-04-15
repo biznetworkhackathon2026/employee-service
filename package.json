@@ -1,0 +1,49 @@
+{
+  "name": "employee-service",
+  "version": "1.0.0",
+  "description": "CAP CDS Employee Management Service",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "cds-serve",
+    "dev": "cds watch",
+    "build": "cds build --production",
+    "test": "jest --testEnvironment=node"
+  },
+  "dependencies": {
+    "@sap/cds": "^7",
+    "@sap/cds-dk": "^7",
+    "@sap/xssec": "^3",
+    "express": "^4",
+    "hdb": "^0.19",
+    "passport": "^0.6"
+  },
+  "devDependencies": {
+    "jest": "^29",
+    "@cap-js/sqlite": "^1"
+  },
+  "cds": {
+    "requires": {
+      "db": {
+        "kind": "sqlite",
+        "[production]": {
+          "kind": "hana"
+        }
+      },
+      "auth": {
+        "kind": "xsuaa",
+        "[development]": {
+          "kind": "dummy"
+        }
+      },
+      "notifications": {
+        "kind": "alert-notification",
+        "[development]": {
+          "kind": "console"
+        }
+      }
+    },
+    "features": {
+      "fetch_csrf": true
+    }
+  }
+}

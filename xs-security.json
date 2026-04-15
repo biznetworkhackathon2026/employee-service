@@ -1,0 +1,52 @@
+{
+  "xsappname": "employee-service",
+  "tenant-mode": "dedicated",
+  "description": "Employee Management Service Security",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.Employee.Read",
+      "description": "Read employee data"
+    },
+    {
+      "name": "$XSAPPNAME.Employee.Write",
+      "description": "Create and update employees"
+    },
+    {
+      "name": "$XSAPPNAME.Employee.Delete",
+      "description": "Delete employees"
+    },
+    {
+      "name": "$XSAPPNAME.Employee.Admin",
+      "description": "Full employee administration"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "Employee_Viewer",
+      "description": "View employees",
+      "scope-references": ["$XSAPPNAME.Employee.Read"]
+    },
+    {
+      "name": "Employee_Editor",
+      "description": "Create and edit employees",
+      "scope-references": [
+        "$XSAPPNAME.Employee.Read",
+        "$XSAPPNAME.Employee.Write"
+      ]
+    },
+    {
+      "name": "Employee_Admin",
+      "description": "Full employee management",
+      "scope-references": [
+        "$XSAPPNAME.Employee.Read",
+        "$XSAPPNAME.Employee.Write",
+        "$XSAPPNAME.Employee.Delete",
+        "$XSAPPNAME.Employee.Admin"
+      ]
+    }
+  ],
+  "oauth2-configuration": {
+    "token-validity": 43200,
+    "redirect-uris": ["https://*.cfapps.us10.hana.ondemand.com/**"]
+  }
+}

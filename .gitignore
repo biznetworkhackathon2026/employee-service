@@ -1,0 +1,8 @@
+.env
+node_modules/
+*.db
+gen/
+dist/
+.DS_Store
+.npmrc
+default-env.json
