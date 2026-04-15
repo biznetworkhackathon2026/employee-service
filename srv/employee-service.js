@@ -50,53 +50,25 @@ module.exports = cds.service.impl(async function (srv) {
         }
     });
 
-    // OOM BUG: Load ALL 50k rows into memory on every READ, accumulate in global buffer
+    // BUG: Simulated IOException on every GET /Employees — triggers alert + GitHub Action
     srv.before('READ', Employees, async (req) => {
         const logger = cds.log('employee-service');
 
-        try {
-            const db = await cds.connect.to('db');
+        const ioError = new Error(
+            'IOException: Failed to read from data source — ' +
+            'connection reset by peer while streaming employee records'
+        );
+        ioError.code = 'IO_EXCEPTION';
 
-            // BUG: Fetch ALL rows (including 50k junk) regardless of query filters
-            const allRows = await db.run(SELECT.from(Employees));
-            logger.warn(`⚠️  Loaded ${allRows.length} rows into memory`);
+        logger.error('💥 IOException thrown on GET /Employees:', ioError.message);
 
-            // BUG: Accumulate in global array — never released (simulates memory leak)
-            const junkChunk = allRows.map(r => ({
-                ...r,
-                // Duplicate address blob to amplify memory usage
-                _blob: Buffer.alloc(1024, r.address || 'X').toString('base64')
-            }));
-            memoryBlackHole.push(junkChunk);
+        // Fire BTP Alert Notification
+        await sendOOMAlert(ioError);
 
-            const heapMB = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
-            logger.warn(`💀 memoryBlackHole size: ${memoryBlackHole.length} chunks | heapUsed: ${heapMB} MB`);
+        // Trigger GitHub Actions workflow via repository_dispatch
+        await triggerGitHubAnalysis(ioError);
 
-            // Simulate OutOfMemoryError once heap grows beyond threshold
-            if (heapMB > 180 || memoryBlackHole.length >= 3) {
-                const oomError = new Error(
-                    `OutOfMemoryError: Java heap space — heapUsed=${heapMB}MB, ` +
-                    `rows=${allRows.length}, chunks=${memoryBlackHole.length}`
-                );
-                oomError.code = 'OUT_OF_MEMORY';
-                throw oomError;
-            }
-
-        } catch (err) {
-            if (err.code === 'OUT_OF_MEMORY') {
-                cds.log('employee-service').error('💥 OOM detected on GET /Employees:', err.message);
-
-                // Fire BTP Alert Notification
-                await sendOOMAlert(err);
-
-                // Trigger GitHub Actions workflow via repository_dispatch
-                await triggerGitHubAnalysis(err);
-
-                req.error(503, `Service temporarily unavailable: ${err.message}`);
-            } else {
-                throw err;
-            }
-        }
+        req.error(503, `Service temporarily unavailable: ${ioError.message}`);
     });
 });
 
@@ -107,11 +79,11 @@ async function sendOOMAlert(err) {
         const alertSvc = await cds.connect.to('notifications');
         await alertSvc.send('notify', {
             type: 'sap.common.Alert',
-            subject: '🚨 OutOfMemoryError on GET /employee/Employees',
-            body: `The Employee Service has crashed with an OutOfMemoryError while serving GET /Employees.\n\nDetails: ${err.message}\n\nAutomatic log analysis has been triggered via GitHub Actions.`,
+            subject: '🚨 IOException on GET /employee/Employees',
+            body: `The Employee Service has thrown an IOException while serving GET /Employees.\n\nDetails: ${err.message}\n\nAutomatic log analysis has been triggered via GitHub Actions.`,
             priority: 'HIGH'
         });
-        cds.log('alert-notification').info('✅ OOM alert sent via BTP Alert Notification');
+        cds.log('alert-notification').info('✅ Alert sent via BTP Alert Notification');
     } catch (e) {
         cds.log('alert-notification').warn('Alert notification failed:', e.message);
     }
@@ -134,7 +106,8 @@ async function triggerGitHubAnalysis(err) {
                 error: err.message,
                 timestamp: new Date().toISOString(),
                 service: 'employee-service',
-                endpoint: 'GET /employee/Employees'
+                endpoint: 'GET /employee/Employees',
+                exception_type: 'IOException'
             }
         });
 
