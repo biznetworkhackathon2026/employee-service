@@ -2,7 +2,6 @@ using com.hackathon.employee as emp from '../db/schema';
 
 service EmployeeService @(path:'/employee') {
 
-    @odata.draft.enabled
     entity Employees as projection on emp.Employees;
 
     action onboardEmployee(

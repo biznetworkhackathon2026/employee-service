@@ -4,7 +4,7 @@
   "description": "CAP CDS Employee Management Service",
   "engines": { "node": ">=18" },
   "scripts": {
-    "start": "cds-serve",
+    "start": "cds deploy --to sqlite:/tmp/employee.db && cds-serve",
     "dev": "cds watch",
     "build": "cds build --production",
     "test": "jest --testEnvironment=node"
@@ -24,13 +24,10 @@
     "requires": {
       "db": {
         "kind": "sqlite",
-        "credentials": { "url": ":memory:" }
+        "credentials": { "url": "/tmp/employee.db" }
       },
       "auth": {
-        "kind": "xsuaa",
-        "[development]": {
-          "kind": "dummy"
-        }
+        "kind": "dummy"
       },
       "notifications": {
         "kind": "alert-notification",
