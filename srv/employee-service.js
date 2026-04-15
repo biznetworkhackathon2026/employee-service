@@ -1,5 +1,8 @@
 const cds = require('@sap/cds');
 
+// Memory leak: Cached search results that are never cleared
+const searchCache = new Map();
+
 module.exports = cds.service.impl(async function (srv) {
 
     const { Employees } = this.entities;
@@ -51,6 +54,45 @@ module.exports = cds.service.impl(async function (srv) {
         if (data && data.status === 'Inactive') {
             await sendStatusChangeNotification(req, data);
         }
+    });
+
+    // BUG: Employee search with memory leak
+    // This handler caches all search results indefinitely without cleanup
+    srv.before('READ', Employees, async (req) => {
+        const query = req.query;
+
+        // Generate cache key from query parameters
+        const cacheKey = JSON.stringify({
+            where: query.SELECT?.where,
+            orderBy: query.SELECT?.orderBy,
+            limit: query.SELECT?.limit
+        });
+
+        // BUG: searchCache grows indefinitely - never clears old entries
+        // Each search stores full employee objects in memory forever
+        if (!searchCache.has(cacheKey)) {
+            cds.log('employee-service').info(`Cache miss for search: ${cacheKey.substring(0, 100)}`);
+
+            // Execute the query and store ALL results in cache
+            const db = await cds.connect.to('db');
+            const results = await db.run(query);
+
+            // MEMORY LEAK: Store full result set without size limit or TTL
+            searchCache.set(cacheKey, {
+                results: results,
+                timestamp: new Date(),
+                // BUG: Also keeping a copy of the raw database ResultSet
+                // In a real JDBC scenario, this would be an unclosed ResultSet
+                rawResults: JSON.parse(JSON.stringify(results))
+            });
+
+            cds.log('employee-service').info(`Search cache size: ${searchCache.size} entries`);
+        } else {
+            cds.log('employee-service').info(`Cache hit for search: ${cacheKey.substring(0, 100)}`);
+        }
+
+        // Note: This doesn't actually prevent the query from running again
+        // It just accumulates search results in memory forever
     });
 });
 
