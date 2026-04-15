@@ -1,0 +1,105 @@
+name: Analyze Production Logs with MCP
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_name:
+        description: 'Service to analyze'
+        required: true
+        default: 'employee-service-srv'
+        type: choice
+        options:
+          - employee-service-srv
+          - payroll-service-srv
+          - timesheet-service-srv
+          - notification-service-srv
+          - config-service-srv
+      time_window:
+        description: 'Time window to analyze'
+        required: false
+        default: '-6h'
+      create_pr:
+        description: 'Auto-create PR with fix'
+        required: false
+        type: boolean
+        default: true
+
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+  # Can also be triggered by external webhooks
+  repository_dispatch:
+    types: [analyze-alert]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      copilot-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Analyze logs and generate fix using Copilot CLI + MCP
+        id: analyze
+        uses: austenstone/copilot-cli@v1
+        with:
+          prompt: |
+            You are a production debugging assistant analyzing logs from our microservices.
+
+            TASK:
+            1. Connect to the alertsMCP server to fetch logs and metrics
+            2. Analyze the logs to identify critical issues (memory leaks, exceptions, performance problems)
+            3. If you find issues, create a pull request with a code fix
+
+            SERVICE: ${{ github.event.inputs.service_name || 'employee-service-srv' }}
+            TIME WINDOW: ${{ github.event.inputs.time_window || '-6h' }}
+            CREATE PR: ${{ github.event.inputs.create_pr || 'true' }}
+
+            INSTRUCTIONS:
+            - Use the alertsMCP tools to fetch logs and metrics
+            - Look for ERROR level logs with exceptions (especially OutOfMemoryError)
+            - Check memory_usage_bytes metric for increasing trends
+            - Analyze stack traces to identify the root cause
+            - For memory leaks in the searchCache (srv/employee-service.js), recommend implementing an LRU cache with:
+              * Maximum size limit (e.g., 1000 entries)
+              * TTL-based expiration (e.g., 5 minutes)
+              * Periodic cleanup
+            - If create_pr is true, create a branch and PR with the fix
+            - Include detailed analysis in the PR description with error counts, metrics, and root cause
+
+            Start by connecting to the MCP server and fetching logs for the specified service.
+
+          autopilot: true
+          max-turns: 15
+          no-ask-user: true
+          allow-all-tools: true
+          enable-all-github-mcp-tools: true
+          model: claude-sonnet-4
+          reasoning-effort: high
+          upload-artifact: true
+          share: copilot-analysis.md
+
+          mcp-config: |
+            {
+              "mcpServers": {
+                "alerts": {
+                  "transport": {
+                    "type": "sse",
+                    "url": "${{ vars.ALERTS_MCP_URL }}/sse"
+                  }
+                }
+              }
+            }
+
+      - name: Upload analysis report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-analysis-report
+          path: copilot-analysis.md
