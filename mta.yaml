@@ -12,36 +12,16 @@ modules:
       memory: 256M
       disk-quota: 512M
     build-parameters:
-      builder: npm
-      build-result: .
-      commands:
-        - npm ci --production
+      builder: npm-ci
     provides:
       - name: srv-api
         properties:
           srv-url: ${default-url}
     requires:
-      - name: employee-hana-db
       - name: employee-xsuaa
       - name: employee-alert-notification
-      - name: employee-connectivity
-
-  - name: employee-service-db-deployer
-    type: hdb
-    path: gen/db
-    parameters:
-      buildpack: nodejs_buildpack
-      memory: 256M
-    requires:
-      - name: employee-hana-db
 
 resources:
-  - name: employee-hana-db
-    type: com.sap.xs.hdi-container
-    parameters:
-      service: hana
-      service-plan: hdi-shared
-
   - name: employee-xsuaa
     type: org.cloudfoundry.managed-service
     parameters:
@@ -53,13 +33,6 @@ resources:
         tenant-mode: dedicated
 
   - name: employee-alert-notification
-    type: org.cloudfoundry.managed-service
+    type: org.cloudfoundry.existing-service
     parameters:
-      service: alert-notification
-      service-plan: standard
-
-  - name: employee-connectivity
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: connectivity
-      service-plan: lite
+      service-name: alert-notification

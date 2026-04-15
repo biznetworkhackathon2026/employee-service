@@ -47,6 +47,6 @@
   ],
   "oauth2-configuration": {
     "token-validity": 43200,
-    "redirect-uris": ["https://*.cfapps.us10.hana.ondemand.com/**"]
+    "redirect-uris": ["https://*.cfapps.us10-001.hana.ondemand.com/**"]
   }
 }
