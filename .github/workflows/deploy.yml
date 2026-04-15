@@ -1,0 +1,66 @@
+name: Deploy to CF on PR Merge
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Build & Deploy CAP Service to Cloud Foundry
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install CDS DK
+        run: npm install -g @sap/cds-dk@^8
+
+      - name: Build CDS (gen/srv)
+        run: cds build --production
+
+      - name: Install CF CLI
+        run: |
+          curl -L "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github" | tar -zx
+          sudo mv cf8 /usr/local/bin/cf
+          cf --version
+
+      - name: Install MTA build tool
+        run: |
+          curl -L "https://github.com/SAP/cloud-mta-build-tool/releases/latest/download/cloud-mta-build-tool_Linux_amd64.tar.gz" | tar -zx
+          sudo mv mbt /usr/local/bin/mbt
+          mbt --version
+
+      - name: Install CF MTA plugin
+        run: |
+          cf install-plugin -f https://github.com/cloudfoundry-incubator/multiapps-cli-plugin/releases/latest/download/multiapps-plugin.linux64
+
+      - name: CF Login
+        run: |
+          cf login \
+            -a "${{ secrets.CF_API }}" \
+            -u "${{ secrets.CF_USERNAME }}" \
+            -p "${{ secrets.CF_PASSWORD }}" \
+            -o "${{ secrets.CF_ORG }}" \
+            -s "${{ secrets.CF_SPACE }}"
+
+      - name: Build MTA archive
+        run: mbt build -p cf
+
+      - name: Deploy MTA to CF
+        run: cf deploy mta_archives/*.mtar -f
+
+      - name: Map friendly route
+        run: |
+          cf map-route employee-service-srv cfapps.us10-001.hana.ondemand.com \
+            --hostname biznetworkhackathon2026-employee-service || true
