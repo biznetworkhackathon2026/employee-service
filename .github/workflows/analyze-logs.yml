@@ -56,7 +56,7 @@ jobs:
 
       - name: Analyze logs and generate fix using Copilot CLI + MCP
         id: analyze
-        uses: austenstone/copilot-cli@v1
+        uses: austenstone/copilot-cli@v1.0
         with:
           prompt: |
             You are a production debugging assistant analyzing logs from our microservices.
