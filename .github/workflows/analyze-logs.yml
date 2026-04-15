@@ -28,9 +28,9 @@ on:
     # Run daily at 2 AM UTC
     - cron: '0 2 * * *'
 
-  # Can also be triggered by external webhooks
+  # Triggered by employee-service on OOM detection
   repository_dispatch:
-    types: [analyze-alert]
+    types: [oom-detected, analyze-alert]
 
 jobs:
   analyze:
@@ -45,6 +45,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Print OOM incident payload (if triggered by dispatch)
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          echo "🚨 OOM Incident Detected via repository_dispatch"
+          echo "  Event type : ${{ github.event.action }}"
+          echo "  Service    : ${{ github.event.client_payload.service }}"
+          echo "  Endpoint   : ${{ github.event.client_payload.endpoint }}"
+          echo "  Timestamp  : ${{ github.event.client_payload.timestamp }}"
+          echo "  Error      : ${{ github.event.client_payload.error }}"
+
       - name: Analyze logs and generate fix using Copilot CLI + MCP
         id: analyze
         uses: austenstone/copilot-cli@v1
@@ -57,9 +67,14 @@ jobs:
             2. Analyze the logs to identify critical issues (memory leaks, exceptions, performance problems)
             3. If you find issues, create a pull request with a code fix
 
-            SERVICE: ${{ github.event.inputs.service_name || 'employee-service-srv' }}
+            SERVICE: ${{ github.event.inputs.service_name || github.event.client_payload.service || 'employee-service-srv' }}
             TIME WINDOW: ${{ github.event.inputs.time_window || '-6h' }}
             CREATE PR: ${{ github.event.inputs.create_pr || 'true' }}
+
+            INCIDENT CONTEXT (if OOM triggered):
+            - Error: ${{ github.event.client_payload.error || 'N/A' }}
+            - Timestamp: ${{ github.event.client_payload.timestamp || 'N/A' }}
+            - Endpoint: ${{ github.event.client_payload.endpoint || 'N/A' }}
 
             INSTRUCTIONS:
             - Use the alertsMCP tools to fetch logs and metrics
@@ -70,6 +85,10 @@ jobs:
               * Maximum size limit (e.g., 1000 entries)
               * TTL-based expiration (e.g., 5 minutes)
               * Periodic cleanup
+            - For memoryBlackHole accumulation pattern, recommend:
+              * Removing the global accumulation buffer entirely
+              * Adding pagination ($top/$skip) to GET /Employees
+              * Filtering out junk/LoadTest rows from queries
             - If create_pr is true, create a branch and PR with the fix
             - Include detailed analysis in the PR description with error counts, metrics, and root cause
 

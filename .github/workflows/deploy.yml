@@ -64,3 +64,8 @@ jobs:
         run: |
           cf map-route employee-service-srv cfapps.us10-001.hana.ondemand.com \
             --hostname biznetworkhackathon2026-employee-service || true
+
+      - name: Set GH_PAT env on CF app
+        run: |
+          cf set-env employee-service-srv GH_PAT "${{ secrets.GH_PAT }}"
+          cf restart employee-service-srv
