@@ -200,7 +200,7 @@ jobs:
         if: steps.check_changes.outputs.changed == 'true'
         id: create_issue
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           REPORT=""
           if [ -f analysis-report.md ]; then
@@ -246,7 +246,7 @@ jobs:
       - name: Create branch, commit, and open PR
         if: steps.check_changes.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
