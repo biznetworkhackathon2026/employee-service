@@ -36,40 +36,32 @@ env:
   BRANCH: fix/sre-auto-${{ github.run_id }}
 
 jobs:
-  # ── Subagent 1: Fetch logs ──────────────────────────────────────────────────
+  # ── Subagent 1: Fetch logs via MCP API ─────────────────────────────────────
   fetch-logs:
     runs-on: ubuntu-latest
     steps:
       - name: Fetch Kibana logs via alertsMCP
-        id: logs
-        uses: austenstone/copilot-cli@v3.0
-        with:
-          copilot-token: ${{ secrets.COPILOT_PAT }}
-          prompt: |
-            You are a logs subagent. Your ONLY job is to fetch logs and save them.
-
-            Use the alerts MCP server to call fetch_kibana_logs with these parameters:
-              service_name="${{ env.SERVICE }}"
-              log_level="ERROR"
-              start_time="${{ env.TIME_WINDOW }}"
-              limit=20
-
-            Write the FULL raw result to a file called logs-output.md.
-            Include every log entry, stack trace, timestamp, and error message.
-            Do NOT analyze or summarize. Just save the raw data.
-
-          allow-all-tools: true
-          model: gpt-4.1
-          mcp-config: |
-            {
-              "mcpServers": {
-                "alerts": {
-                  "type": "http",
-                  "url": "${{ vars.ALERTS_MCP_URL }}/mcp",
-                  "tools": ["fetch_kibana_logs"]
+        run: |
+          curl -s -X POST "${{ vars.ALERTS_MCP_URL }}/mcp" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json, text/event-stream" \
+            -d '{
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "tools/call",
+              "params": {
+                "name": "fetch_kibana_logs",
+                "arguments": {
+                  "service_name": "${{ env.SERVICE }}",
+                  "log_level": "ERROR",
+                  "start_time": "${{ env.TIME_WINDOW }}",
+                  "limit": 20
                 }
               }
-            }
+            }' | sed 's/^data: //' | jq -r '.result.content[0].text // .' > logs-output.md
+
+          echo "Logs fetched: $(wc -l < logs-output.md) lines"
+          head -50 logs-output.md
 
       - name: Upload logs artifact
         uses: actions/upload-artifact@v4
@@ -77,39 +69,31 @@ jobs:
           name: logs-output
           path: logs-output.md
 
-  # ── Subagent 2: Fetch metrics ───────────────────────────────────────────────
+  # ── Subagent 2: Fetch metrics via MCP API ──────────────────────────────────
   fetch-metrics:
     runs-on: ubuntu-latest
     steps:
       - name: Fetch Prometheus metrics via alertsMCP
-        id: metrics
-        uses: austenstone/copilot-cli@v3.0
-        with:
-          copilot-token: ${{ secrets.COPILOT_PAT }}
-          prompt: |
-            You are a metrics subagent. Your ONLY job is to fetch metrics and save them.
-
-            Use the alerts MCP server to call query_prometheus_metrics with these parameters:
-              metric_name="memory_usage_bytes"
-              service_name="${{ env.SERVICE }}"
-              start_time="${{ env.TIME_WINDOW }}"
-
-            Write the FULL raw result to a file called metrics-output.md.
-            Include all data points, trend analysis, min/max/avg values, and anomaly flags.
-            Do NOT analyze or summarize. Just save the raw data.
-
-          allow-all-tools: true
-          model: gpt-4.1
-          mcp-config: |
-            {
-              "mcpServers": {
-                "alerts": {
-                  "type": "http",
-                  "url": "${{ vars.ALERTS_MCP_URL }}/mcp",
-                  "tools": ["query_prometheus_metrics"]
+        run: |
+          curl -s -X POST "${{ vars.ALERTS_MCP_URL }}/mcp" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json, text/event-stream" \
+            -d '{
+              "jsonrpc": "2.0",
+              "id": 2,
+              "method": "tools/call",
+              "params": {
+                "name": "query_prometheus_metrics",
+                "arguments": {
+                  "metric_name": "memory_usage_bytes",
+                  "service_name": "${{ env.SERVICE }}",
+                  "start_time": "${{ env.TIME_WINDOW }}"
                 }
               }
-            }
+            }' | sed 's/^data: //' | jq -r '.result.content[0].text // .' > metrics-output.md
+
+          echo "Metrics fetched: $(wc -l < metrics-output.md) lines"
+          head -50 metrics-output.md
 
       - name: Upload metrics artifact
         uses: actions/upload-artifact@v4
@@ -180,8 +164,6 @@ jobs:
           allow-all-tools: true
           model: gpt-4.1
           upload-artifact: true
-          add-github-mcp-toolsets: all
-          enable-all-github-mcp-tools: true
 
       - name: Check for code fix
         id: check_changes
