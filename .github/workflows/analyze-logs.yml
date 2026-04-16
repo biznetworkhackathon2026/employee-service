@@ -30,6 +30,11 @@ on:
   repository_dispatch:
     types: [service-alert, analyze-alert]
 
+env:
+  SERVICE: ${{ github.event.inputs.service_name || github.event.client_payload.service || 'employee-service-srv' }}
+  TIME_WINDOW: ${{ github.event.inputs.time_window || '-6h' }}
+  BRANCH: fix/sre-auto-${{ github.run_id }}
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -57,20 +62,21 @@ jobs:
           prompt: |
             You are an SRE assistant. A production alert has fired for the employee-service on SAP BTP Cloud Foundry.
 
-            SERVICE: ${{ github.event.inputs.service_name || github.event.client_payload.service || 'employee-service-srv' }}
-            TIME WINDOW: ${{ github.event.inputs.time_window || '-6h' }}
+            SERVICE: ${{ env.SERVICE }}
+            TIME WINDOW: ${{ env.TIME_WINDOW }}
             INCIDENT TIME: ${{ github.event.client_payload.timestamp || 'recent' }}
             ENDPOINT: ${{ github.event.client_payload.endpoint || 'unknown' }}
 
             STEPS:
-            1. Use the alerts MCP server to call fetch_kibana_logs with service_name="${{ github.event.inputs.service_name || github.event.client_payload.service || 'employee-service-srv' }}", log_level="ERROR", start_time="${{ github.event.inputs.time_window || '-6h' }}", limit=20.
-            2. Use the alerts MCP server to call query_prometheus_metrics with metric_name="memory_usage_bytes", service_name="${{ github.event.inputs.service_name || github.event.client_payload.service || 'employee-service-srv' }}", start_time="${{ github.event.inputs.time_window || '-6h' }}".
+            1. Use the alerts MCP server to call fetch_kibana_logs with service_name="${{ env.SERVICE }}", log_level="ERROR", start_time="${{ env.TIME_WINDOW }}", limit=20.
+            2. Use the alerts MCP server to call query_prometheus_metrics with metric_name="memory_usage_bytes", service_name="${{ env.SERVICE }}", start_time="${{ env.TIME_WINDOW }}".
             3. Read the source code in srv/employee-service.js to understand the service logic.
             4. Based ONLY on what the logs and metrics show, identify the root cause.
-            5. Propose a concrete code fix in srv/employee-service.js.
-            6. If create_pr is true, create a branch named fix/sre-auto-${{ github.run_id }} and open a PR. Use a single-line commit message with no special characters.
+            5. Write the fixed version of srv/employee-service.js. Do NOT create a branch or PR yourself.
+            6. Write a file called analysis-report.md with your findings: root cause, evidence from logs and metrics, and what you changed.
 
             Do not assume or hardcode the error type. Let the logs tell you what is wrong.
+            Do NOT run git commands or create pull requests. Just fix the code file and write the report.
 
           allow-all-tools: true
           model: gpt-4.1
@@ -89,9 +95,112 @@ jobs:
               }
             }
 
+      - name: Check for code changes
+        id: check_changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No code changes detected"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Code changes detected:"
+            git diff --stat
+          fi
+
+      - name: Create GitHub Issue
+        if: steps.check_changes.outputs.changed == 'true'
+        id: create_issue
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          REPORT=""
+          if [ -f analysis-report.md ]; then
+            REPORT=$(cat analysis-report.md)
+          fi
+
+          DIFF=$(git diff --stat)
+
+          ISSUE_URL=$(gh issue create \
+            --title "SRE Alert: Production issue detected in ${{ env.SERVICE }}" \
+            --label "bug" \
+            --body "$(cat <<ENDOFBODY
+          ## Automated SRE Analysis — Run ${{ github.run_id }}
+
+          **Service:** ${{ env.SERVICE }}
+          **Time window:** ${{ env.TIME_WINDOW }}
+          **Trigger:** ${{ github.event_name }}
+
+          ### Analysis Report
+
+          ${REPORT:-Copilot analyzed logs and metrics and applied a code fix. See the PR for details.}
+
+          ### Files Changed
+
+          \`\`\`
+          ${DIFF}
+          \`\`\`
+
+          ### Evidence Sources
+          - alertsMCP \`fetch_kibana_logs\` — ERROR-level logs for ${{ env.SERVICE }}
+          - alertsMCP \`query_prometheus_metrics\` — memory_usage_bytes trend
+          - Source code analysis of \`srv/employee-service.js\`
+
+          _This issue was created automatically by the SRE analysis workflow._
+          ENDOFBODY
+          )")
+
+          ISSUE_NUM=$(echo "$ISSUE_URL" | grep -o '[0-9]*$')
+          echo "issue_url=${ISSUE_URL}" >> "$GITHUB_OUTPUT"
+          echo "issue_num=${ISSUE_NUM}" >> "$GITHUB_OUTPUT"
+          echo "Created issue: ${ISSUE_URL}"
+
+      - name: Create branch, commit, and open PR
+        if: steps.check_changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "${{ env.BRANCH }}"
+          git add -A
+          git commit -m "fix(${{ env.SERVICE }}): auto-remediation from SRE analysis run ${{ github.run_id }}"
+          git push origin "${{ env.BRANCH }}"
+
+          gh pr create \
+            --title "fix(${{ env.SERVICE }}): auto-remediation from SRE log analysis" \
+            --base main \
+            --head "${{ env.BRANCH }}" \
+            --body "$(cat <<ENDOFBODY
+          ## SRE Auto-Fix — Run ${{ github.run_id }}
+
+          Closes #${{ steps.create_issue.outputs.issue_num }}
+
+          ### What happened
+          A production alert fired for \`${{ env.SERVICE }}\`. The SRE workflow:
+          1. Fetched ERROR logs via alertsMCP \`fetch_kibana_logs\`
+          2. Queried memory metrics via alertsMCP \`query_prometheus_metrics\`
+          3. Read the source code in \`srv/employee-service.js\`
+          4. Identified the root cause from log + metric evidence
+          5. Applied a code fix automatically
+
+          ### Changes
+          $(git diff --stat HEAD~1)
+
+          ### Issue
+          ${{ steps.create_issue.outputs.issue_url }}
+
+          _This PR was created automatically by the SRE analysis workflow._
+          ENDOFBODY
+          )"
+
+          echo "PR created and linked to issue #${{ steps.create_issue.outputs.issue_num }}"
+
       - name: Upload analysis report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: log-analysis-report
-          path: copilot-analysis.md
+          path: |
+            analysis-report.md
+            copilot-analysis.md
