@@ -36,7 +36,90 @@ env:
   BRANCH: fix/sre-auto-${{ github.run_id }}
 
 jobs:
+  # ── Subagent 1: Fetch logs ──────────────────────────────────────────────────
+  fetch-logs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Kibana logs via alertsMCP
+        id: logs
+        uses: austenstone/copilot-cli@v3.0
+        with:
+          copilot-token: ${{ secrets.GH_PAT }}
+          prompt: |
+            You are a logs subagent. Your ONLY job is to fetch logs and save them.
+
+            Use the alerts MCP server to call fetch_kibana_logs with these parameters:
+              service_name="${{ env.SERVICE }}"
+              log_level="ERROR"
+              start_time="${{ env.TIME_WINDOW }}"
+              limit=20
+
+            Write the FULL raw result to a file called logs-output.md.
+            Include every log entry, stack trace, timestamp, and error message.
+            Do NOT analyze or summarize. Just save the raw data.
+
+          allow-all-tools: true
+          model: gpt-4.1
+          mcp-config: |
+            {
+              "mcpServers": {
+                "alerts": {
+                  "type": "http",
+                  "url": "${{ vars.ALERTS_MCP_URL }}/mcp",
+                  "tools": ["fetch_kibana_logs"]
+                }
+              }
+            }
+
+      - name: Upload logs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-output
+          path: logs-output.md
+
+  # ── Subagent 2: Fetch metrics ───────────────────────────────────────────────
+  fetch-metrics:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Prometheus metrics via alertsMCP
+        id: metrics
+        uses: austenstone/copilot-cli@v3.0
+        with:
+          copilot-token: ${{ secrets.GH_PAT }}
+          prompt: |
+            You are a metrics subagent. Your ONLY job is to fetch metrics and save them.
+
+            Use the alerts MCP server to call query_prometheus_metrics with these parameters:
+              metric_name="memory_usage_bytes"
+              service_name="${{ env.SERVICE }}"
+              start_time="${{ env.TIME_WINDOW }}"
+
+            Write the FULL raw result to a file called metrics-output.md.
+            Include all data points, trend analysis, min/max/avg values, and anomaly flags.
+            Do NOT analyze or summarize. Just save the raw data.
+
+          allow-all-tools: true
+          model: gpt-4.1
+          mcp-config: |
+            {
+              "mcpServers": {
+                "alerts": {
+                  "type": "http",
+                  "url": "${{ vars.ALERTS_MCP_URL }}/mcp",
+                  "tools": ["query_prometheus_metrics"]
+                }
+              }
+            }
+
+      - name: Upload metrics artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-output
+          path: metrics-output.md
+
+  # ── Main agent: Correlate findings and fix code ─────────────────────────────
   analyze:
+    needs: [fetch-logs, fetch-metrics]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -54,13 +137,25 @@ jobs:
           echo "Endpoint : ${{ github.event.client_payload.endpoint }}"
           echo "Time     : ${{ github.event.client_payload.timestamp }}"
 
-      - name: Analyze logs and generate fix using Copilot CLI + MCP
+      - name: Download logs from subagent
+        uses: actions/download-artifact@v4
+        with:
+          name: logs-output
+          path: evidence/
+
+      - name: Download metrics from subagent
+        uses: actions/download-artifact@v4
+        with:
+          name: metrics-output
+          path: evidence/
+
+      - name: Merge findings and generate fix using Copilot CLI
         id: analyze
         uses: austenstone/copilot-cli@v3.0
         with:
           copilot-token: ${{ secrets.GH_PAT }}
           prompt: |
-            You are an SRE assistant. A production alert has fired for the employee-service on SAP BTP Cloud Foundry.
+            You are the main SRE agent. Two subagents have already gathered evidence for you.
 
             SERVICE: ${{ env.SERVICE }}
             TIME WINDOW: ${{ env.TIME_WINDOW }}
@@ -68,14 +163,18 @@ jobs:
             ENDPOINT: ${{ github.event.client_payload.endpoint || 'unknown' }}
 
             STEPS:
-            1. Use the alerts MCP server to call fetch_kibana_logs with service_name="${{ env.SERVICE }}", log_level="ERROR", start_time="${{ env.TIME_WINDOW }}", limit=20.
-            2. Use the alerts MCP server to call query_prometheus_metrics with metric_name="memory_usage_bytes", service_name="${{ env.SERVICE }}", start_time="${{ env.TIME_WINDOW }}".
-            3. Read the source code in srv/employee-service.js to understand the service logic.
-            4. Based ONLY on what the logs and metrics show, identify the root cause.
-            5. Write the fixed version of srv/employee-service.js. Do NOT create a branch or PR yourself.
-            6. Write a file called analysis-report.md with your findings: root cause, evidence from logs and metrics, and what you changed.
+            1. Read evidence/logs-output.md — these are ERROR logs from the logs subagent.
+            2. Read evidence/metrics-output.md — these are memory metrics from the metrics subagent.
+            3. Read the source code in srv/employee-service.js.
+            4. Correlate the log errors with the metric trends to identify the root cause.
+            5. Write the fixed version of srv/employee-service.js. Fix the root cause.
+            6. Write a file called analysis-report.md with:
+               - Root cause (derived from evidence, not assumed)
+               - Log evidence summary
+               - Metric evidence summary
+               - What you changed and why
 
-            Do not assume or hardcode the error type. Let the logs tell you what is wrong.
+            Do not assume or hardcode the error type. Let the evidence tell you what is wrong.
             Do NOT run git commands or create pull requests. Just fix the code file and write the report.
 
           allow-all-tools: true
@@ -83,17 +182,6 @@ jobs:
           upload-artifact: true
           add-github-mcp-toolsets: all
           enable-all-github-mcp-tools: true
-
-          mcp-config: |
-            {
-              "mcpServers": {
-                "alerts": {
-                  "type": "http",
-                  "url": "${{ vars.ALERTS_MCP_URL }}/mcp",
-                  "tools": ["fetch_kibana_logs", "query_prometheus_metrics"]
-                }
-              }
-            }
 
       - name: Check for code changes
         id: check_changes
