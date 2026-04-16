@@ -53,7 +53,7 @@ jobs:
         id: analyze
         uses: austenstone/copilot-cli@v3.0
         with:
-          github-token: ${{ secrets.GH_PAT }}
+          copilot-token: ${{ secrets.GH_PAT }}
           prompt: |
             You are an SRE assistant. A production alert has fired for the employee-service on SAP BTP Cloud Foundry.
 
@@ -75,7 +75,8 @@ jobs:
           allow-all-tools: true
           model: gpt-4.1
           upload-artifact: true
-          github-mcp-toolsets: all
+          add-github-mcp-toolsets: all
+          enable-all-github-mcp-tools: true
 
           mcp-config: |
             {
