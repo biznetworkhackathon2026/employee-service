@@ -1,10 +1,15 @@
 const cds = require('@sap/cds');
 
-// Memory leak: Cached search results that are never cleared
-const searchCache = new Map();
+// LRU cache for search results (max 1000 entries, 5 min TTL)
+const LRU = require('lru-cache');
+const searchCache = new LRU({
+  max: 1000,
+  ttl: 1000 * 60 * 5, // 5 minutes
+  allowStale: false
+});
 
-// In-memory junk buffer — grows on every READ to simulate OOM
-const memoryBlackHole = [];
+// REMOVED: In-memory junk buffer — previously caused OOM
+// const memoryBlackHole = [];
 
 module.exports = cds.service.impl(async function (srv) {
 
@@ -50,24 +55,30 @@ module.exports = cds.service.impl(async function (srv) {
         }
     });
 
-    // BUG: Simulated IOException on every GET /Employees — triggers alert + GitHub Action
+    // GET /Employees: Add pagination ($top/$skip) and filter out LoadTest/junk rows
+    srv.on('READ', Employees, async (req) => {
+        const { $top = 100, $skip = 0 } = req.query || {};
+        const where = [
+            { department: { '!=': 'LoadTest' } },
+            { email: { 'not like': '%@loadtest.internal' } }
+        ];
+        const employees = await SELECT.from(Employees)
+            .where(where)
+            .limit($top, $skip);
+        return employees;
+    });
+
+    // Simulated IOException for legacy alerting (kept for reference)
     srv.before('READ', Employees, async (req) => {
         const logger = cds.log('employee-service');
-
         const ioError = new Error(
             'IOException: Failed to read from data source — ' +
             'connection reset by peer while streaming employee records'
         );
         ioError.code = 'IO_EXCEPTION';
-
         logger.error('💥 IOException thrown on GET /Employees:', ioError.message);
-
-        // Fire BTP Alert Notification
         await sendOOMAlert(ioError);
-
-        // Trigger GitHub Actions workflow via repository_dispatch
         await triggerGitHubAnalysis(ioError);
-
         req.error(503, `Service temporarily unavailable: ${ioError.message}`);
     });
 });

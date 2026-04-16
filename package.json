@@ -2,7 +2,9 @@
   "name": "employee-service",
   "version": "1.0.0",
   "description": "CAP CDS Employee Management Service",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "cds deploy --to sqlite:/tmp/employee.db && cds-serve",
     "dev": "cds watch",
@@ -10,11 +12,12 @@
     "test": "jest --testEnvironment=node"
   },
   "dependencies": {
+    "@cap-js/sqlite": "^1",
     "@sap/cds": "^8",
     "@sap/cds-dk": "^8",
     "@sap/xssec": "^3",
-    "@cap-js/sqlite": "^1",
     "express": "^4",
+    "lru-cache": "^11.3.5",
     "passport": "^0.6"
   },
   "devDependencies": {
@@ -24,7 +27,9 @@
     "requires": {
       "db": {
         "kind": "sqlite",
-        "credentials": { "url": "/tmp/employee.db" }
+        "credentials": {
+          "url": "/tmp/employee.db"
+        }
       },
       "auth": {
         "kind": "dummy"
