@@ -1,0 +1,1 @@
+Unable to fetch logs: The required API (alerts MCP server, fetch_kibana_logs) is not accessible from this environment. Please provide the raw log data or enable access to the necessary endpoint, and I will save it as requested.
