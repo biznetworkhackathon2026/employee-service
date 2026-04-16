@@ -81,10 +81,8 @@ jobs:
             {
               "mcpServers": {
                 "alerts": {
-                  "transport": {
-                    "type": "sse",
-                    "url": "${{ vars.ALERTS_MCP_URL }}/sse"
-                  }
+                  "type": "http",
+                  "url": "${{ vars.ALERTS_MCP_URL }}/mcp"
                 }
               }
             }
