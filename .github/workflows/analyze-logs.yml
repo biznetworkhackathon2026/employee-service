@@ -58,6 +58,7 @@ jobs:
         id: analyze
         uses: austenstone/copilot-cli@v1.0
         with:
+          github-token: ${{ secrets.GH_PAT }}
           prompt: |
             You are a production debugging assistant analyzing logs from our microservices.
 
@@ -93,15 +94,10 @@ jobs:
 
             Start by connecting to the MCP server and fetching logs for the specified service.
 
-          autopilot: true
-          max-turns: 15
-          no-ask-user: true
           allow-all-tools: true
-          enable-all-github-mcp-tools: true
           model: claude-sonnet-4
-          reasoning-effort: high
           upload-artifact: true
-          share: copilot-analysis.md
+          github-mcp-toolsets: all
 
           mcp-config: |
             {
