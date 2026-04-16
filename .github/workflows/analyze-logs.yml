@@ -51,7 +51,7 @@ jobs:
 
       - name: Analyze logs and generate fix using Copilot CLI + MCP
         id: analyze
-        uses: austenstone/copilot-cli@v1.0
+        uses: austenstone/copilot-cli@v3.0
         with:
           github-token: ${{ secrets.GH_PAT }}
           prompt: |
@@ -63,8 +63,8 @@ jobs:
             ENDPOINT: ${{ github.event.client_payload.endpoint || 'unknown' }}
 
             STEPS:
-            1. Call the MCP tool alerts-fetch_kibana_logs with service_name="${{ github.event.inputs.service_name || github.event.client_payload.service || 'employee-service-srv' }}", log_level="ERROR", start_time="${{ github.event.inputs.time_window || '-6h' }}", limit=20. This tool is available via the alerts MCP server.
-            2. Call the MCP tool alerts-query_prometheus_metrics with metric_name="memory_usage_bytes", service_name="${{ github.event.inputs.service_name || github.event.client_payload.service || 'employee-service-srv' }}", start_time="${{ github.event.inputs.time_window || '-6h' }}".
+            1. Use the alerts MCP server to call fetch_kibana_logs with service_name="${{ github.event.inputs.service_name || github.event.client_payload.service || 'employee-service-srv' }}", log_level="ERROR", start_time="${{ github.event.inputs.time_window || '-6h' }}", limit=20.
+            2. Use the alerts MCP server to call query_prometheus_metrics with metric_name="memory_usage_bytes", service_name="${{ github.event.inputs.service_name || github.event.client_payload.service || 'employee-service-srv' }}", start_time="${{ github.event.inputs.time_window || '-6h' }}".
             3. Read the source code in srv/employee-service.js to understand the service logic.
             4. Based ONLY on what the logs and metrics show, identify the root cause.
             5. Propose a concrete code fix in srv/employee-service.js.
