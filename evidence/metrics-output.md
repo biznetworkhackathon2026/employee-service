@@ -1,0 +1,1 @@
+Unable to fetch metrics: alerts.api.github.com is unreachable and no local metrics data is available. No data points, trend analysis, min/max/avg values, or anomaly flags could be retrieved or saved.

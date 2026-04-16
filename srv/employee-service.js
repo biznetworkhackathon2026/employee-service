@@ -50,18 +50,27 @@ module.exports = cds.service.impl(async function (srv) {
     srv.before('READ', Employees, async (req) => {
         const logger = cds.log('employee-service');
 
-        const ioError = new Error(
-            'IOException: Failed to read from data source — ' +
-            'connection reset by peer while streaming employee records'
-        );
-        ioError.code = 'IO_EXCEPTION';
-
-        logger.error('IOException on GET /Employees:', ioError.message);
-
-        await sendAlertNotification(ioError);
-        await triggerGitHubAnalysis(ioError);
-
-        req.error(503, `Service temporarily unavailable: ${ioError.message}`);
+        try {
+            // Attempt normal read (simulate with a dummy SELECT)
+            // If your real logic is here, keep it; this is just a placeholder
+            // await SELECT.from(Employees);
+        } catch (err) {
+            // Only handle network-related errors
+            if (err.code === 'ENOTFOUND' || err.code === 'EAI_AGAIN' || /Could not resolve host|unreachable/i.test(err.message)) {
+                logger.warn('Network error on GET /Employees:', err.message);
+                try { await sendAlertNotification(err); } catch (e) { logger.warn('Alert notification failed:', e.message); }
+                try { await triggerGitHubAnalysis(err); } catch (e) { logger.warn('GitHub analysis trigger failed:', e.message); }
+                // Allow degraded operation: return empty result or fallback
+                req.reply([]);
+                return;
+            } else {
+                logger.error('IOException on GET /Employees:', err.message);
+                try { await sendAlertNotification(err); } catch (e) { logger.warn('Alert notification failed:', e.message); }
+                try { await triggerGitHubAnalysis(err); } catch (e) { logger.warn('GitHub analysis trigger failed:', e.message); }
+                req.error(503, `Service temporarily unavailable: ${err.message}`);
+                return;
+            }
+        }
     });
 });
 
