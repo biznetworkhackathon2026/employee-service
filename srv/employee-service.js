@@ -71,7 +71,7 @@ async function sendAlertNotification(err) {
     try {
         const alertSvc = await cds.connect.to('notifications');
         await alertSvc.send('notify', {
-            type: 'sap.common.Alert',
+            type: 'employee-service/ErrorOccurred',
             subject: 'Production alert on GET /employee/Employees',
             body: `The Employee Service encountered an error serving GET /Employees.\n\nDetails: ${err.message}\n\nAutomatic log analysis has been triggered.`,
             priority: 'HIGH'
@@ -134,7 +134,7 @@ async function sendOnboardNotification(req, employee) {
     try {
         const alertSvc = await cds.connect.to('notifications');
         await alertSvc.send('notify', {
-            type: 'sap.common.Alert',
+            type: 'employee-service/EmployeeOnboarded',
             subject: `New Employee Onboarded: ${employee.firstName} ${employee.lastName}`,
             body: `Employee ${employee.firstName} ${employee.lastName} (${employee.email}) has been onboarded as ${employee.jobTitle} in ${employee.department}.`,
             priority: 'LOW'
@@ -148,7 +148,7 @@ async function sendOffboardNotification(req, employee) {
     try {
         const alertSvc = await cds.connect.to('notifications');
         await alertSvc.send('notify', {
-            type: 'sap.common.Alert',
+            type: 'employee-service/EmployeeOffboarded',
             subject: `Employee Offboarded: ${employee.firstName} ${employee.lastName}`,
             body: `Employee ${employee.firstName} ${employee.lastName} (${employee.email}) has been removed from the system.`,
             priority: 'MEDIUM'
@@ -162,7 +162,7 @@ async function sendStatusChangeNotification(req, employee) {
     try {
         const alertSvc = await cds.connect.to('notifications');
         await alertSvc.send('notify', {
-            type: 'sap.common.Alert',
+            type: 'employee-service/EmployeeStatusChanged',
             subject: `Employee Status Changed: ${employee.firstName} ${employee.lastName}`,
             body: `Employee ${employee.firstName} ${employee.lastName} status has been updated to Inactive.`,
             priority: 'MEDIUM'
