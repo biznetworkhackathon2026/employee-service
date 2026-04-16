@@ -183,16 +183,17 @@ jobs:
           add-github-mcp-toolsets: all
           enable-all-github-mcp-tools: true
 
-      - name: Check for code changes
+      - name: Check for code fix
         id: check_changes
         run: |
-          if git diff --quiet; then
+          CODE_CHANGED=$(git diff --name-only -- 'srv/' 'db/' 'package.json' | head -20)
+          if [ -z "$CODE_CHANGED" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "No code changes detected"
+            echo "No code fix detected in srv/ — skipping issue and PR creation"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Code changes detected:"
-            git diff --stat
+            echo "Code fix detected in:"
+            echo "$CODE_CHANGED"
           fi
 
       - name: Create GitHub Issue
