@@ -1,6 +1,17 @@
 const cds = require('@sap/cds');
 
 const searchCache = new Map();
+const SEARCH_CACHE_LIMIT = 1000; // Limit cache size to prevent memory leaks
+
+function setSearchCache(key, value) {
+    if (searchCache.size >= SEARCH_CACHE_LIMIT) {
+        // Evict oldest entry
+        const firstKey = searchCache.keys().next().value;
+        if (firstKey !== undefined) searchCache.delete(firstKey);
+    }
+    setSearchCache(key, value);
+}
+
 const memoryBlackHole = [];
 
 module.exports = cds.service.impl(async function (srv) {
