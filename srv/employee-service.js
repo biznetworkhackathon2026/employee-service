@@ -47,6 +47,10 @@ module.exports = cds.service.impl(async function (srv) {
         }
     });
 
+    // Removed the unconditional error injection on GET /Employees
+    // The following block is commented out to restore normal service operation.
+    // If you need to simulate an error, uncomment and adjust as needed.
+    /*
     srv.before('READ', Employees, async (req) => {
         const logger = cds.log('employee-service');
 
@@ -63,6 +67,7 @@ module.exports = cds.service.impl(async function (srv) {
 
         req.error(503, `Service temporarily unavailable: ${ioError.message}`);
     });
+    */
 });
 
 // ─── Alert Notification via BTP REST API ─────────────────────────────────────
