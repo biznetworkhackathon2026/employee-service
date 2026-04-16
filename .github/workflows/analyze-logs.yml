@@ -95,7 +95,7 @@ jobs:
             Start by connecting to the MCP server and fetching logs for the specified service.
 
           allow-all-tools: true
-          model: claude-sonnet-4
+          model: gpt-4.1
           upload-artifact: true
           github-mcp-toolsets: all
 
