@@ -98,7 +98,7 @@ async function triggerGitHubAnalysis(err) {
             client_payload: {
                 error: err.message,
                 timestamp: new Date().toISOString(),
-                service: 'employee-service',
+                service: 'employee-service-srv',
                 endpoint: 'GET /employee/Employees'
             }
         });
@@ -109,15 +109,25 @@ async function triggerGitHubAnalysis(err) {
                 path: '/repos/biznetworkhackathon2026/employee-service/dispatches',
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
+                    'Authorization': `token ${token}`,
                     'Accept': 'application/vnd.github+json',
                     'Content-Type': 'application/json',
                     'User-Agent': 'employee-service-cap',
+                    'X-GitHub-Api-Version': '2022-11-28',
                     'Content-Length': Buffer.byteLength(payload)
                 }
             }, (res) => {
-                cds.log('github').info(`✅ GitHub dispatch triggered — HTTP ${res.statusCode}`);
-                resolve();
+                let body = '';
+                res.on('data', (chunk) => { body += chunk; });
+                res.on('end', () => {
+                    if (res.statusCode >= 200 && res.statusCode < 300) {
+                        cds.log('github').info(`GitHub dispatch triggered — HTTP ${res.statusCode}`);
+                        resolve();
+                    } else {
+                        cds.log('github').error(`GitHub dispatch failed — HTTP ${res.statusCode}: ${body}`);
+                        reject(new Error(`GitHub API returned ${res.statusCode}: ${body}`));
+                    }
+                });
             });
             req.on('error', reject);
             req.write(payload);
