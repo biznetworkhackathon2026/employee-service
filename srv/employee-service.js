@@ -1,9 +1,6 @@
 const cds = require('@sap/cds');
 
-// Memory leak: Cached search results that are never cleared
 const searchCache = new Map();
-
-// In-memory junk buffer — grows on every READ to simulate OOM
 const memoryBlackHole = [];
 
 module.exports = cds.service.impl(async function (srv) {
@@ -50,7 +47,6 @@ module.exports = cds.service.impl(async function (srv) {
         }
     });
 
-    // BUG: Simulated IOException on every GET /Employees — triggers alert + GitHub Action
     srv.before('READ', Employees, async (req) => {
         const logger = cds.log('employee-service');
 
@@ -60,12 +56,9 @@ module.exports = cds.service.impl(async function (srv) {
         );
         ioError.code = 'IO_EXCEPTION';
 
-        logger.error('💥 IOException thrown on GET /Employees:', ioError.message);
+        logger.error('IOException on GET /Employees:', ioError.message);
 
-        // Fire BTP Alert Notification
-        await sendOOMAlert(ioError);
-
-        // Trigger GitHub Actions workflow via repository_dispatch
+        await sendAlertNotification(ioError);
         await triggerGitHubAnalysis(ioError);
 
         req.error(503, `Service temporarily unavailable: ${ioError.message}`);
@@ -74,16 +67,16 @@ module.exports = cds.service.impl(async function (srv) {
 
 // ─── Alert Notification ───────────────────────────────────────────────────────
 
-async function sendOOMAlert(err) {
+async function sendAlertNotification(err) {
     try {
         const alertSvc = await cds.connect.to('notifications');
         await alertSvc.send('notify', {
             type: 'sap.common.Alert',
-            subject: '🚨 IOException on GET /employee/Employees',
-            body: `The Employee Service has thrown an IOException while serving GET /Employees.\n\nDetails: ${err.message}\n\nAutomatic log analysis has been triggered via GitHub Actions.`,
+            subject: 'Production alert on GET /employee/Employees',
+            body: `The Employee Service encountered an error serving GET /Employees.\n\nDetails: ${err.message}\n\nAutomatic log analysis has been triggered.`,
             priority: 'HIGH'
         });
-        cds.log('alert-notification').info('✅ Alert sent via BTP Alert Notification');
+        cds.log('alert-notification').info('Alert sent via BTP Alert Notification');
     } catch (e) {
         cds.log('alert-notification').warn('Alert notification failed:', e.message);
     }
@@ -101,13 +94,12 @@ async function triggerGitHubAnalysis(err) {
     try {
         const https = require('https');
         const payload = JSON.stringify({
-            event_type: 'oom-detected',
+            event_type: 'service-alert',
             client_payload: {
                 error: err.message,
                 timestamp: new Date().toISOString(),
                 service: 'employee-service',
-                endpoint: 'GET /employee/Employees',
-                exception_type: 'IOException'
+                endpoint: 'GET /employee/Employees'
             }
         });
 

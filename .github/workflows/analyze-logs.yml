@@ -25,12 +25,10 @@ on:
         default: true
 
   schedule:
-    # Run daily at 2 AM UTC
     - cron: '0 2 * * *'
 
-  # Triggered by employee-service on OOM detection
   repository_dispatch:
-    types: [oom-detected, analyze-alert]
+    types: [service-alert, analyze-alert]
 
 jobs:
   analyze:
@@ -44,15 +42,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Print OOM incident payload (if triggered by dispatch)
+      - name: Print incident payload
         if: github.event_name == 'repository_dispatch'
         run: |
-          echo "🚨 OOM Incident Detected via repository_dispatch"
-          echo "  Event type : ${{ github.event.action }}"
-          echo "  Service    : ${{ github.event.client_payload.service }}"
-          echo "  Endpoint   : ${{ github.event.client_payload.endpoint }}"
-          echo "  Timestamp  : ${{ github.event.client_payload.timestamp }}"
-          echo "  Error      : ${{ github.event.client_payload.error }}"
+          echo "Service  : ${{ github.event.client_payload.service }}"
+          echo "Endpoint : ${{ github.event.client_payload.endpoint }}"
+          echo "Time     : ${{ github.event.client_payload.timestamp }}"
 
       - name: Analyze logs and generate fix using Copilot CLI + MCP
         id: analyze
@@ -60,39 +55,22 @@ jobs:
         with:
           github-token: ${{ secrets.GH_PAT }}
           prompt: |
-            You are a production debugging assistant analyzing logs from our microservices.
-
-            TASK:
-            1. Connect to the alertsMCP server to fetch logs and metrics
-            2. Analyze the logs to identify critical issues (memory leaks, exceptions, performance problems)
-            3. If you find issues, create a pull request with a code fix
+            You are an SRE assistant. A production alert has fired for the employee-service on SAP BTP Cloud Foundry.
 
             SERVICE: ${{ github.event.inputs.service_name || github.event.client_payload.service || 'employee-service-srv' }}
             TIME WINDOW: ${{ github.event.inputs.time_window || '-6h' }}
-            CREATE PR: ${{ github.event.inputs.create_pr || 'true' }}
+            INCIDENT TIME: ${{ github.event.client_payload.timestamp || 'recent' }}
+            ENDPOINT: ${{ github.event.client_payload.endpoint || 'unknown' }}
 
-            INCIDENT CONTEXT (if OOM triggered):
-            - Error: ${{ github.event.client_payload.error || 'N/A' }}
-            - Timestamp: ${{ github.event.client_payload.timestamp || 'N/A' }}
-            - Endpoint: ${{ github.event.client_payload.endpoint || 'N/A' }}
+            STEPS:
+            1. Use the alerts MCP server to call fetch_kibana_logs for the service above with log_level ERROR and the given time window. Get real logs — do not simulate or guess.
+            2. Use query_prometheus_metrics to check memory_usage_bytes and errors_total for the same service and time window.
+            3. Read the source code in srv/employee-service.js to understand the service logic.
+            4. Based ONLY on what the logs and metrics show, identify the root cause.
+            5. Propose a concrete code fix in srv/employee-service.js.
+            6. If create_pr is true, create a branch named fix/sre-auto-<timestamp> and open a PR. Use a single-line commit message with no special characters.
 
-            INSTRUCTIONS:
-            - Use the alertsMCP tools to fetch logs and metrics
-            - Look for ERROR level logs with exceptions (especially OutOfMemoryError)
-            - Check memory_usage_bytes metric for increasing trends
-            - Analyze stack traces to identify the root cause
-            - For memory leaks in the searchCache (srv/employee-service.js), recommend implementing an LRU cache with:
-              * Maximum size limit (e.g., 1000 entries)
-              * TTL-based expiration (e.g., 5 minutes)
-              * Periodic cleanup
-            - For memoryBlackHole accumulation pattern, recommend:
-              * Removing the global accumulation buffer entirely
-              * Adding pagination ($top/$skip) to GET /Employees
-              * Filtering out junk/LoadTest rows from queries
-            - If create_pr is true, create a branch and PR with the fix
-            - Include detailed analysis in the PR description with error counts, metrics, and root cause
-
-            Start by connecting to the MCP server and fetching logs for the specified service.
+            Do not assume or hardcode the error type. Let the logs tell you what is wrong.
 
           allow-all-tools: true
           model: gpt-4.1
