@@ -1,7 +1,6 @@
 const cds = require('@sap/cds');
 
-const searchCache = new Map();
-const memoryBlackHole = [];
+// Removed searchCache and memoryBlackHole due to memory leak
 
 module.exports = cds.service.impl(async function (srv) {
 
