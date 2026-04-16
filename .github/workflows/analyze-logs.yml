@@ -44,7 +44,7 @@ jobs:
         id: logs
         uses: austenstone/copilot-cli@v3.0
         with:
-          copilot-token: ${{ secrets.GH_PAT }}
+          copilot-token: ${{ secrets.COPILOT_PAT }}
           prompt: |
             You are a logs subagent. Your ONLY job is to fetch logs and save them.
 
@@ -85,7 +85,7 @@ jobs:
         id: metrics
         uses: austenstone/copilot-cli@v3.0
         with:
-          copilot-token: ${{ secrets.GH_PAT }}
+          copilot-token: ${{ secrets.COPILOT_PAT }}
           prompt: |
             You are a metrics subagent. Your ONLY job is to fetch metrics and save them.
 
@@ -153,7 +153,7 @@ jobs:
         id: analyze
         uses: austenstone/copilot-cli@v3.0
         with:
-          copilot-token: ${{ secrets.GH_PAT }}
+          copilot-token: ${{ secrets.COPILOT_PAT }}
           prompt: |
             You are the main SRE agent. Two subagents have already gathered evidence for you.
 
