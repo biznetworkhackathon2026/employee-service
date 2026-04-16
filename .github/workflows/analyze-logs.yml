@@ -63,12 +63,12 @@ jobs:
             ENDPOINT: ${{ github.event.client_payload.endpoint || 'unknown' }}
 
             STEPS:
-            1. Use the alerts MCP server to call fetch_kibana_logs for the service above with log_level ERROR and the given time window. Get real logs — do not simulate or guess.
-            2. Use query_prometheus_metrics to check memory_usage_bytes and errors_total for the same service and time window.
+            1. Call the MCP tool alerts-fetch_kibana_logs with service_name="${{ github.event.inputs.service_name || github.event.client_payload.service || 'employee-service-srv' }}", log_level="ERROR", start_time="${{ github.event.inputs.time_window || '-6h' }}", limit=20. This tool is available via the alerts MCP server.
+            2. Call the MCP tool alerts-query_prometheus_metrics with metric_name="memory_usage_bytes", service_name="${{ github.event.inputs.service_name || github.event.client_payload.service || 'employee-service-srv' }}", start_time="${{ github.event.inputs.time_window || '-6h' }}".
             3. Read the source code in srv/employee-service.js to understand the service logic.
             4. Based ONLY on what the logs and metrics show, identify the root cause.
             5. Propose a concrete code fix in srv/employee-service.js.
-            6. If create_pr is true, create a branch named fix/sre-auto-<timestamp> and open a PR. Use a single-line commit message with no special characters.
+            6. If create_pr is true, create a branch named fix/sre-auto-${{ github.run_id }} and open a PR. Use a single-line commit message with no special characters.
 
             Do not assume or hardcode the error type. Let the logs tell you what is wrong.
 
@@ -83,7 +83,7 @@ jobs:
                 "alerts": {
                   "type": "http",
                   "url": "${{ vars.ALERTS_MCP_URL }}/mcp",
-                  "tools": ["*"]
+                  "tools": ["fetch_kibana_logs", "query_prometheus_metrics"]
                 }
               }
             }
