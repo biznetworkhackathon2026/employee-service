@@ -82,7 +82,8 @@ jobs:
               "mcpServers": {
                 "alerts": {
                   "type": "http",
-                  "url": "${{ vars.ALERTS_MCP_URL }}/mcp"
+                  "url": "${{ vars.ALERTS_MCP_URL }}/mcp",
+                  "tools": ["*"]
                 }
               }
             }
