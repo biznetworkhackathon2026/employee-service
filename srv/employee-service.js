@@ -48,20 +48,17 @@ module.exports = cds.service.impl(async function (srv) {
     });
 
     srv.before('READ', Employees, async (req) => {
+        // Remove the forced IO_EXCEPTION error and allow normal processing
+        // Optionally, add memory usage logging or slow query detection if needed
+        // Example: log memory usage
         const logger = cds.log('employee-service');
-
-        const ioError = new Error(
-            'IOException: Failed to read from data source — ' +
-            'connection reset by peer while streaming employee records'
-        );
-        ioError.code = 'IO_EXCEPTION';
-
-        logger.error('IOException on GET /Employees:', ioError.message);
-
-        await sendAlertNotification(ioError);
-        await triggerGitHubAnalysis(ioError);
-
-        req.error(503, `Service temporarily unavailable: ${ioError.message}`);
+        const used = process.memoryUsage().rss / (1024 * 1024);
+        const limit = 256;
+        if (used > limit * 0.95) {
+            logger.warn(`Memory usage high: ${used.toFixed(1)}MB / ${limit}MB (${(used/limit*100).toFixed(1)}%)`);
+        }
+        // Optionally, add slow query logging in the after handler if needed
+        // No error injected here; normal read proceeds
     });
 });
 
