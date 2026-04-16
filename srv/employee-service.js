@@ -47,22 +47,24 @@ module.exports = cds.service.impl(async function (srv) {
         }
     });
 
-    srv.before('READ', Employees, async (req) => {
-        const logger = cds.log('employee-service');
+    // Removed the unconditional error injection on READ. If you need to simulate errors, use a feature flag or environment variable.
+    // srv.before('READ', Employees, async (req) => {
+    //     const logger = cds.log('employee-service');
+    //
+    //     const ioError = new Error(
+    //         'IOException: Failed to read from data source — ' +
+    //         'connection reset by peer while streaming employee records'
+    //     );
+    //     ioError.code = 'IO_EXCEPTION';
+    //
+    //     logger.error('IOException on GET /Employees:', ioError.message);
+    //
+    //     await sendAlertNotification(ioError);
+    //     await triggerGitHubAnalysis(ioError);
+    //
+    //     req.error(503, `Service temporarily unavailable: ${ioError.message}`);
+    // });
 
-        const ioError = new Error(
-            'IOException: Failed to read from data source — ' +
-            'connection reset by peer while streaming employee records'
-        );
-        ioError.code = 'IO_EXCEPTION';
-
-        logger.error('IOException on GET /Employees:', ioError.message);
-
-        await sendAlertNotification(ioError);
-        await triggerGitHubAnalysis(ioError);
-
-        req.error(503, `Service temporarily unavailable: ${ioError.message}`);
-    });
 });
 
 // ─── Alert Notification via BTP REST API ─────────────────────────────────────
