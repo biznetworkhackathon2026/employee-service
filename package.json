@@ -28,12 +28,6 @@
       },
       "auth": {
         "kind": "dummy"
-      },
-      "notifications": {
-        "kind": "alert-notification",
-        "[development]": {
-          "kind": "console"
-        }
       }
     },
     "features": {
